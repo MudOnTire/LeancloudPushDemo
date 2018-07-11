@@ -7,6 +7,8 @@
     "test": "jest"
   },
   "dependencies": {
+    "leancloud-realtime": "^4.2.0",
+    "leancloud-storage": "^3.7.3",
     "react": "16.4.1",
     "react-native": "0.56.0"
   },
