@@ -3200,6 +3200,10 @@ jsprim@^1.2.2:
     json-schema "0.2.3"
     verror "1.10.0"
 
+jstz@^1.0.7:
+  version "1.0.11"
+  resolved "http://registry.npm.taobao.org/jstz/download/jstz-1.0.11.tgz#70e83e55c9621bfa706cdc8aa73f2a03931de7d9"
+
 kind-of@^1.1.0:
   version "1.1.0"
   resolved "http://registry.npm.taobao.org/kind-of/download/kind-of-1.1.0.tgz#140a3d2d41a36d2efcfa9377b62c24f8495a5c44"
@@ -3240,11 +3244,17 @@ lcid@^1.0.0:
   dependencies:
     invert-kv "^1.0.0"
 
+leancloud-installation@^2.0.1:
+  version "2.0.1"
+  resolved "http://registry.npm.taobao.org/leancloud-installation/download/leancloud-installation-2.0.1.tgz#824bd7893b2abbf3427f837470e9a9a436b6e12a"
+  dependencies:
+    jstz "^1.0.7"
+
 leancloud-realtime-plugin-live-query@^1.1.1:
   version "1.1.1"
   resolved "http://registry.npm.taobao.org/leancloud-realtime-plugin-live-query/download/leancloud-realtime-plugin-live-query-1.1.1.tgz#8f553fa3ff54a13a1a280f62dfe82330c0b2f2d4"
 
-leancloud-realtime@^4.0.0-beta.5, leancloud-realtime@^4.2.0:
+leancloud-realtime@^4.0.0-beta.5:
   version "4.2.0"
   resolved "http://registry.npm.taobao.org/leancloud-realtime/download/leancloud-realtime-4.2.0.tgz#c76bf5d7aa02b71255eb795f4daca2f58efb588f"
   dependencies:
