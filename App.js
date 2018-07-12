@@ -17,10 +17,14 @@ export default class App extends Component<Props> {
     PushService._iOS_initPush();
   }
 
+  componentWillUnmount() {
+    PushNotificationIOS.removeEventListener('register');
+  }
+
   render() {
     return (
-      <View>
-        <Text>Leancloud Push Demo</Text>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text style={{ fontSize: 24 }}>Leancloud Push Demo</Text>
       </View>
     );
   }

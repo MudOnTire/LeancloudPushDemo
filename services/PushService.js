@@ -20,13 +20,13 @@ class PushService {
 
     _iOS_onRegister = (deviceToken) => {
         if (deviceToken) {
-            this._saveInstallation(deviceToken);
+            this._iOS_saveInstallation(deviceToken);
         }
     }
 
     _iOS_saveInstallation = (deviceToken) => {
         const info = {
-            apnsTopic: 'com.example',
+            apnsTopic: 'com.example.LeancloudPushDemo',
             deviceType: 'ios',
             deviceToken: deviceToken
         };
@@ -37,4 +37,4 @@ class PushService {
     }
 }
 
-export default PushService();
+export default new PushService();
