@@ -4267,6 +4267,10 @@ react-is@^16.4.1:
   version "16.4.1"
   resolved "http://registry.npm.taobao.org/react-is/download/react-is-16.4.1.tgz#d624c4650d2c65dbd52c72622bbf389435d9776e"
 
+react-native-message-bar@^2.0.10:
+  version "2.0.10"
+  resolved "http://registry.npm.taobao.org/react-native-message-bar/download/react-native-message-bar-2.0.10.tgz#34632bdf2cbfe0f51ae4f1e9a91c42b4394a11c2"
+
 react-native@0.56.0:
   version "0.56.0"
   resolved "http://registry.npm.taobao.org/react-native/download/react-native-0.56.0.tgz#66686f781ec39a44376aadd4bbc55c8573ab61e5"
