@@ -1,6 +1,7 @@
 import AV from 'leancloud-storage';
 import { AppState, Alert } from 'react-native';
 const PushNotificationIOS = require('react-native').PushNotificationIOS;
+const AndroidPush = NativeModules.AndroidPushModule;
 
 const appId = 'ppdriT1clcnRoda0okCPaB48-gzGzoHsz';
 const appKey = 'Qzarq5cMdWzAMjwDW4umWpBL';
@@ -92,14 +93,12 @@ class PushService {
     }
 
     _an_saveInstallation = () => {
-        Installation.getCurrent()
-            .then(installation => {
-                console.log(installation);
-                installation.save();
-            })
-            .catch(error => console.log(error));
+        AndroidPush.saveInstaillation((installationId) => {
+            if (installationId) {
+                console.log('Android installation 保存成功！');
+            }
+        })
     }
-
 
     _showAlert = (message) => {
         const MessageBarManager = require('react-native-message-bar').MessageBarManager;
