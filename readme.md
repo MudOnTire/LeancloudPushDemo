@@ -1019,12 +1019,5 @@ _an_saveInstallation = () => {
 
 经过不懈的努力，我们已经成功使用Leancloud实现了iOS和Android上的消息通知，第一次写这么长的文章还是有点累的。。如果对你有帮助欢迎点赞！还有虽然功能都实现了，但是我想可能还会有更好的实现方式，欢迎找到的同学分享，谢谢！
 
-## 相关链接
-
-iOS篇地址：[使用Leancloud实现React Native App的消息推送（Push Notification）- iOS篇](https://segmentfault.com/a/1190000015614719)
-
-本文Demo Github地址：[https://github.com/MudOnTire/LeancloudPushDemo](https://github.com/MudOnTire/LeancloudPushDemo))
-
-
 
 
