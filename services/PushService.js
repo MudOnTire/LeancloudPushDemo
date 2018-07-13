@@ -1,7 +1,8 @@
 import AV from 'leancloud-storage';
-import { AppState, Alert } from 'react-native';
+import { AppState, NativeModules, Alert, DeviceEventEmitter } from 'react-native';
+
 const PushNotificationIOS = require('react-native').PushNotificationIOS;
-const AndroidPush = NativeModules.AndroidPushModule;
+const AndroidPush = NativeModules.androidPushModule;
 
 const appId = 'ppdriT1clcnRoda0okCPaB48-gzGzoHsz';
 const appKey = 'Qzarq5cMdWzAMjwDW4umWpBL';
@@ -93,11 +94,28 @@ class PushService {
     }
 
     _an_saveInstallation = () => {
-        AndroidPush.saveInstaillation((installationId) => {
+        AndroidPush.saveInstaillation((installationId, error) => {
             if (installationId) {
-                console.log('Android installation 保存成功！');
+                DeviceEventEmitter.addListener(AndroidPush.ON_RECEIVE, (notification) => {
+                    console.log('receive android notification');
+                    this._an_onNotificationTapped(notification);
+                });
+                DeviceEventEmitter.addListener(AndroidPush.ON_CUSTOM_RECEIVE, (notification) => {
+                    console.log('receive custom android notification');
+                    this._showAlert(JSON.parse(notification.data).alert);
+                });
+                DeviceEventEmitter.addListener(AndroidPush.ON_ERROR, (res) => {
+                    console.log('android notification error');
+                    console.log(res);
+                });
+            } else {
+                console.log(error);
             }
         })
+    }
+
+    _an_onNotificationTapped = (notification) => {
+        Alert.alert('Android Notification Tapped');
     }
 
     _showAlert = (message) => {

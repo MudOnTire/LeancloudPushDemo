@@ -40,6 +40,14 @@
             </intent-filter>
         </receiver>
         <!-- 实时通信模块、推送 END -->
+
+        <activity android:name=".PushHandlerActivity"></activity>
+
+        <receiver android:name="com.leancloudpushdemo.CustomPushReceiver">
+            <intent-filter>
+                <action android:name="com.cnuip.INNER_NOTI" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
