@@ -7,7 +7,7 @@
  */
 
 import React, { Component } from 'react';
-import { Text, View } from 'react-native';
+import { Text, View, Platform } from 'react-native';
 import PushService from './services/PushService';
 const MessageBarAlert = require('react-native-message-bar').MessageBar;
 const MessageBarManager = require('react-native-message-bar').MessageBarManager;
@@ -16,12 +16,18 @@ type Props = {};
 export default class App extends Component<Props> {
 
   componentDidMount() {
-    PushService._iOS_initPush();
+    if (Platform.OS === 'ios') {
+      PushService._iOS_initPush();
+    } else {
+      PushService._an_initPush();
+    }
     MessageBarManager.registerMessageBar(this.refs.alert);
   }
 
   componentWillUnmount() {
-    PushNotificationIOS.removeEventListener('register');
+    if (Platform.OS === 'ios') {
+      PushNotificationIOS.removeEventListener('register');
+    }
     MessageBarManager.unregisterMessageBar();
   }
 

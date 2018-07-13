@@ -17,6 +17,7 @@ class PushService {
     //用于记录通知的临时变量
     backgroundNotification = null;
 
+    //iOS
     _iOS_initPush = () => {
         PushNotificationIOS.addEventListener('register', this._iOS_onRegister);
         PushNotificationIOS.addEventListener('notification', this._iOS_onNotification);
@@ -83,6 +84,22 @@ class PushService {
     _iOS_onNotificationTapped = () => {
         Alert.alert('Notification Tapped');
     }
+
+
+    //Android
+    _an_initPush = () => {
+        this._an_saveInstallation();
+    }
+
+    _an_saveInstallation = () => {
+        Installation.getCurrent()
+            .then(installation => {
+                console.log(installation);
+                installation.save();
+            })
+            .catch(error => console.log(error));
+    }
+
 
     _showAlert = (message) => {
         const MessageBarManager = require('react-native-message-bar').MessageBarManager;
