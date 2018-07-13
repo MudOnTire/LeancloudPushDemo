@@ -414,10 +414,617 @@ _iOS_initPush = () => {
 ```
 
 
-# 预告
+至此，使用Leancloud实现iOS的消息推送已实现完成，并涵盖了主要的应用场景。
 
-至此，使用Leancloud实现iOS的消息推送已实现完成，并涵盖了主要的应用场景。出于控制篇幅的原因，Android的实现将会另起一章分享给大家，敬请期待！
+---
+
+# Android
+接下来，咱们来实现Android的消息推送，主要思路和iOS的实现类似。
+
+# 接入Leancloud
+
+在接入Leancloud之前，还是推荐先阅读Leancloud官方的 [Android消息推送开发指南](https://leancloud.cn/docs/android_push_guide.html)。
+
+## 安装Leancloud SDK
+
+SDK有多种安装方式，详情请参考[Android SDK安装指南](https://leancloud.cn/docs/sdk_setup-android.html)。我选择用Gradle安装，先在根目录下的`build.gradle`中添加Leancloud的maven仓库地址：
 
 
-本文Demo Github地址：[https://github.com/MudOnTire/LeancloudPushDemo](https://github.com/MudOnTire/LeancloudPushDemo)，如果对你有帮助，star一下吧。
+```
+buildscript {
+    repositories {
+        jcenter()
+        maven {
+            url 'https://maven.google.com/'
+            name 'Google'
+        }
+
+        maven {
+            url "http://mvn.leancloud.cn/nexus/content/repositories/public"
+        }
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:2.3.3'
+    }
+}
+
+allprojects {
+    repositories {
+        mavenLocal()
+        jcenter()
+        maven {
+            url "$rootDir/../node_modules/react-native/android"
+        }
+        maven {
+            url 'https://maven.google.com/'
+            name 'Google'
+        }
+        maven {
+            url "http://mvn.leancloud.cn/nexus/content/repositories/public"
+        }
+    }
+}
+
+```
+
+然后打开 app 目录下的 `build.gradle` 进行如下配置：
+
+
+```
+android {
+    //为了解决部分第三方库重复打包了META-INF的问题
+    packagingOptions{
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE.txt'
+    }
+    lintOptions {
+        abortOnError false
+    }
+    ...
+}
+
+...
+
+dependencies {
+    ...
+    
+    // LeanCloud 基础包
+    compile ('cn.leancloud.android:avoscloud-sdk:v4.6.4')
+    // 推送与实时聊天需要的包
+    compile ('cn.leancloud.android:avoscloud-push:v4.6.4@aar'){transitive = true}
+}
+
+```
+
+## 初始化Leancloud
+
+我们需要在App创建后用Leancloud的AppId，AppKey进行初始化，修改`MainApplication`如下：
+
+```
+ @Override
+  public void onCreate() {
+    super.onCreate();
+    ...
+    //初始化leancloud
+    AVOSCloud.initialize(this,"ppdriT1clcnRoda0okCPaB48-gzGzoHsz","Qzarq5cMdWzAMjwDW4umWpBL");
+  }
+```
+
+接下来，在`AndroidManifest.xml`中配置Leancloud SDK所需的权限以及消息推送所需的service和receiver：
+
+
+```
+...
+
+<!-- 基础模块（必须加入以下声明）START -->
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+<uses-permission android:name="android.permission.READ_PHONE_STATE" />
+<uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+<!-- 基础模块 END -->
+
+<application
+  ...
+  android:name=".MainApplication" >
+  ...
+
+  <!-- 实时通信模块、推送（均需要加入以下声明） START -->
+  <!-- 实时通信模块、推送都要使用 PushService -->
+  <service android:name="com.avos.avoscloud.PushService"/>
+  <receiver android:name="com.avos.avoscloud.AVBroadcastReceiver">
+    <intent-filter>
+      <action android:name="android.intent.action.BOOT_COMPLETED"/>
+      <action android:name="android.intent.action.USER_PRESENT"/>
+      <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+    </intent-filter>
+  </receiver>
+  <!-- 实时通信模块、推送 END -->
+</application>
+```
+
+到此，Leancloud SDK的接入完成，我们需要测试一下SDK能不能正常使用。我们在`MainActivity.java`的`onCreate`方法中添加代码看能不能保存数据到Leancloud数据库：
+
+```
+@Override
+protected void onCreate(Bundle savedInstanceState) {
+    ...
+    // 测试 SDK 是否正常工作的代码
+    AVObject testObject = new AVObject("TestObject");
+    testObject.put("words","Hello World!");
+    testObject.saveInBackground(new SaveCallback() {
+        @Override
+        public void done(AVException e) {
+            if(e == null){
+                Log.d("saved","success!");
+            }
+        }
+    });
+
+    ...
+}
+```
+
+启动App，前往Leancloud控制台，查看数据库中是否多了一条TestObject的记录，如果有说明Leancloud SDK接入成功：
+
+![image](https://note.youdao.com/yws/api/personal/file/WEB9da414d2cdcbaa974c56b017a679499d?method=download&shareKey=1b306b7d8c923126ec75fae17a685e6f)
+
+## 保存Installation
+
+和iOS一样，Android也需要保存installation才能让Leancloud确定推送到哪些设备。**但是比较坑的是：Leancloud官方提供的 [leancloud-installation](https://www.npmjs.com/package/leancloud-installation)只能正确保存iOS设备的installation。** 因此我们只能使用Android的SDK保存installation，而且我们最好把这个方法封装成一个native模块暴露给js调用，以方便在保存成功或失败后执行相应操作。
+
+在`com.leancloudpushdemo`文件夹中创建`PushModule.java`，`PushDemo`继承于`ReactContextBaseJavaModule`并实现`ActivityEventListener`接口，添加如下代码：
+
+```
+package com.leancloudpushdemo;
+
+import android.app.Activity;
+import android.content.Intent;
+import com.avos.avoscloud.AVException;
+import com.avos.avoscloud.AVInstallation;
+import com.avos.avoscloud.SaveCallback;
+import com.facebook.react.bridge.ActivityEventListener;
+import com.facebook.react.bridge.Callback;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReactContextBaseJavaModule;
+import com.facebook.react.bridge.ReactMethod;
+
+public class PushModule extends ReactContextBaseJavaModule implements ActivityEventListener {
+
+    public PushModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+    }
+    
+    @Override
+    public String getName() {
+        return "androidPushModule";
+    }
+    
+    @Override
+    public void onNewIntent(Intent intent) {}
+
+    @Override
+    public void onActivityResult(Activity activity, int requestCode, int resultCode, Intent data) {}
+
+    /**
+     * 保存installation
+     */
+    @ReactMethod
+    public void saveInstaillation(final Callback resultCallback) {
+        AVInstallation.getCurrentInstallation().saveInBackground(new SaveCallback() {
+            public void done(AVException e) {
+                if (e == null) {
+                    // 保存成功
+                    String installationId = AVInstallation.getCurrentInstallation().getInstallationId();
+                    resultCallback.invoke(installationId);
+                } else {
+                    resultCallback.invoke();
+                }
+            }
+        });
+    }
+}
+
+```
+
+接着在同一目录下面添加`PushPackage.java`用于注册`PushModule`模块，代码如下：
+
+
+```
+package com.leancloudpushdemo;
+
+import com.facebook.react.ReactPackage;
+import com.facebook.react.bridge.NativeModule;
+import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.uimanager.ViewManager;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+
+public class PushPackage implements ReactPackage {
+
+    @Override
+    public List<NativeModule> createNativeModules(ReactApplicationContext reactContext) {
+        List<NativeModule> modules = new ArrayList<>();
+        modules.add(new PushModule(reactContext));
+        return modules;
+    }
+
+    @Override
+    public List<ViewManager> createViewManagers(ReactApplicationContext reactContext) {
+        return Collections.emptyList();
+    }
+}
+
+```
+
+然后，在`MainApplication.java`中的`getPackages`方法中增加`PushPackage`：
+
+```
+@Override
+protected List<ReactPackage> getPackages() {
+    return Arrays.<ReactPackage>asList(
+            ...
+            new PushPackage()
+    );
+}
+```
+
+接着，在我们的`PushService.js`中引入`PushModule`并保存installation：
+
+```
+...
+import { NativeModules } from 'react-native';
+const AndroidPush = NativeModules.androidPushModule;
+
+...
+class PushService {
+    
+    ...
+    //Android
+    _an_initPush = () => {
+        this._an_saveInstallation();
+    }
+
+    _an_saveInstallation = () => {
+        AndroidPush.saveInstaillation((installationId) => {
+            if (installationId) {
+                console.log('Android installation 保存成功！');
+            }
+        })
+    }
+    ...
+}
+```
+
+最后，在`App.js`中执行Android的初始化：
+
+```
+componentDidMount() {
+    if (Platform.OS === 'ios') {
+        PushService._iOS_initPush();
+    } else {
+        PushService._an_initPush();
+    }
+    MessageBarManager.registerMessageBar(this.refs.alert);
+}
+```
+
+重启App，前往Leancloud控制台中查看数据库中是否多了一条installation记录，如果有说明保存成功：
+
+![image](https://note.youdao.com/yws/api/personal/file/WEBd1f33ad33731db081f188a4b0d128751?method=download&shareKey=2e7189afcfa12f13fb4fd23726754b35)
+
+如果确认代码没问题，但是还是保存不成功，我建议：
+1. 重启Android Studio
+2. 重启React Native Packager
+3. 重启电脑、手机。。
+4. 如果还有问题，欢迎咨询我
+
+## 实现系统推送
+
+### 启动推送服务
+
+首先调用Leancloud SDK启动推送服务：
+
+```
+PushService.setDefaultPushCallback(getReactApplicationContext(), PushHandlerActivity.class);
+```
+
+`PushHandlerActivity`为收到通知默认打开的activity，我们接下来实现。
+
+### PushHandlerActivity实现
+
+该activity的定位为接收并初步解析通知数据。我们在`com.leancloudpushdemo`文件夹下添加`PushHandlerActivity.java`，内容如下：
+
+```
+package com.leancloudpushdemo;
+
+import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Bundle;
+import java.util.HashMap;
+import java.util.Map;
+
+
+public class PushHandlerActivity extends Activity {
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        processPush();
+        finish();
+        if (!PushModule.isActive()) {  //todo：判断PushModule是否实例化
+            relaunchActivity();
+        }
+    }
+
+    private void processPush() {
+        try {
+            Intent intent = getIntent();
+            String action = intent.getAction();
+            String channel = intent.getExtras().getString("com.avos.avoscloud.Channel");
+            String data = intent.getExtras().getString("com.avos.avoscloud.Data");
+            Map<String, String> map = new HashMap<String, String>();
+            map.put("action", action);
+            map.put("channel", channel);
+            map.put("data", data);
+            PushModule.onReceive(map); //todo：处理通知
+        } catch (Exception e) {
+            PushModule.onError(e); // todo：处理错误
+        }
+    }
+
+    private void relaunchActivity() {
+        PackageManager pm = getPackageManager();
+        Intent launchIntent = pm.getLaunchIntentForPackage(getApplicationContext().getPackageName());
+        startActivity(launchIntent);
+    }
+}
+
+```
+别忘了在`AndroidManifest.xml`中加上该activity：
+
+```
+<activity android:name=".PushHandlerActivity"></activity>
+```
+
+### 主要处理逻辑实现
+
+`PushHandlerActivity`代码中有三处`todo`是我们接下来要在`PushModule`中实现的逻辑。关于接收到通知后如何处理，我的思路是当native module收到通知时，通过`RCTDeviceEventEmitter`触发相应的Event，在js中监听这些Event并响应，修改`PushModule`如下：
+
+```
+public class PushModule extends ReactContextBaseJavaModule implements ActivityEventListener {
+
+    private static PushModule singleton;
+    private static String ON_RECEIVE = "leancloudPushOnReceive";
+    private static String ON_ERROR = "leancloudPushOnError";
+    
+    public PushModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+        singleton = this;
+    }
+    
+    ...
+    
+    protected static boolean isActive() {
+        return singleton != null;
+    }
+    
+    private static WritableMap getWritableMap(Map<String, String> map) {
+        WritableMap writableMap = Arguments.createMap();
+        writableMap.putString("action", map.get("action"));
+        writableMap.putString("channel", map.get("channel"));
+        writableMap.putString("data", map.get("data"));
+        return writableMap;
+    }
+
+    protected static void onReceive(Map<String, String> map) {
+        if (singleton != null) {
+            WritableMap pushNotification = getWritableMap(map);
+            DeviceEventManagerModule.RCTDeviceEventEmitter emitter = singleton.getReactApplicationContext().getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class);
+            emitter.emit(ON_RECEIVE, pushNotification);
+        }
+    }
+
+    protected static void onError(Exception e) {
+        if (singleton != null) {
+            WritableMap error = Arguments.createMap();
+            error.putString("message", e.getLocalizedMessage());
+            DeviceEventManagerModule.RCTDeviceEventEmitter emitter = singleton.getReactApplicationContext().getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class);
+            emitter.emit(ON_ERROR, error);
+        }
+    }
+
+    @Override
+    public Map<String, Object> getConstants() {
+        final Map<String, Object> constants = new HashMap<>();
+        constants.put("ON_RECEIVE", ON_RECEIVE);
+        constants.put("ON_ERROR", ON_ERROR);
+        return constants;
+    }
+    
+    ...
+```
+
+最后，我们在`PushService.js`增加对消息通知相关事件的监听和处理的逻辑，我选择在保存installation成功后增加监听：
+
+```
+...
+
+import { DeviceEventEmitter } from 'react-native';
+
+...
+class PushService {
+    ...
+    
+    _an_saveInstallation = () => {
+        AndroidPush.saveInstaillation((installationId, error) => {
+            if (installationId) {
+                DeviceEventEmitter.addListener(AndroidPush.ON_RECEIVE, (notification) => {
+                    console.log('receive android notification');
+                    this._an_onNotificationTapped(notification);
+                });
+                DeviceEventEmitter.addListener(AndroidPush.ON_ERROR, (res) => {
+                    console.log('android notification error');
+                    console.log(res);
+                });
+            } else {
+                console.log(error);
+            }
+        })
+    }
+
+    _an_onNotificationTapped = (notification) => {
+        Alert.alert('Android Notification Tapped');
+    }
+}
+...
+```
+现在我们在Leancloud控制台发送一条通知，手机应该能收到消息：
+
+![image](https://note.youdao.com/yws/api/personal/file/WEB107a2c5f3146d3fb6b4f5a04866bf486?method=download&shareKey=9aed91a60a031951ad00188c852e30b3)
+
+当点击通知的时候，App打开并执行我们自定义的逻辑：
+
+![image](https://note.youdao.com/yws/api/personal/file/WEB325089d4f812e2ed4fb749faf622ed06?method=download&shareKey=ac329887769f278d0cc70428b07812dc)
+
+## 实现App打开状态下的推送
+到目前为止，我们已经实现了系统级的推送，和iOS一样，我们希望Android App打开状态下也能弹出通知提醒。Leancloud提供了这样的可能，我们可以通过 [自定义Receiver](https://leancloud.cn/docs/android_push_guide.html#hash1393576931) 来实现。
+
+### 自定义Receiver
+
+我们在`com.leancloudpushdemo`路径下添加`CustomPushReceiver.java`，代码如下：
+
+```
+package com.leancloudpushdemo;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONException;
+import com.alibaba.fastjson.JSONObject;
+import java.util.HashMap;
+import java.util.Map;
+
+public class CustomPushReceiver extends BroadcastReceiver {
+    private static final String TAG = "CustomPushReceiver";
+    private HandleMessage handleMessage;
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        try {
+            String action = intent.getAction();
+            String channel = intent.getExtras().getString("com.avos.avoscloud.Channel");
+            //获取消息内容
+            String data = intent.getExtras().getString("com.avos.avoscloud.Data");
+            JSONObject jsonObject = JSON.parseObject(data);
+            if (jsonObject != null) {
+                Map<String, String> map = new HashMap<String, String>();
+                map.put("action", action);
+                map.put("channel", channel);
+                map.put("data", data);
+                PushModule.onCustomReceive(map); //todo: 处理通知
+                if (handleMessage!=null){
+                    handleMessage.receiveMessage(jsonObject);
+                }
+            }
+        } catch (JSONException e) {
+            PushModule.onError(e);
+        }
+    }
+
+    interface HandleMessage{
+        public void receiveMessage(JSONObject jsonObject);
+    }
+
+    public void setHandleMessage(HandleMessage handleMessage) {
+        this.handleMessage = handleMessage;
+    }
+}
+```
+`todo`的方法待会儿在`PushModule`中实现。接着，在`AndroidManifest.xml`中添加custom receiver:
+
+```
+<receiver android:name="com.leancloudpushdemo.CustomPushReceiver">
+    <intent-filter>
+        <action android:name="com.cnuip.INNER_NOTI" />
+    </intent-filter>
+</receiver>
+```
+### 通知处理
+
+然后修改`PushModule`如下：
+
+```
+public class PushModule extends ReactContextBaseJavaModule implements ActivityEventListener {
+    ...
+    private static String ON_CUSTOM_RECEIVE = "leancloudPushOnCustomReceive";
+    
+    ...
+    
+    protected static void onCustomReceive(Map<String, String> map) {
+        if (singleton != null) {
+            WritableMap pushNotification = getWritableMap(map);
+            DeviceEventManagerModule.RCTDeviceEventEmitter emitter = singleton.getReactApplicationContext().getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class);
+            emitter.emit(ON_CUSTOM_RECEIVE, pushNotification);
+        }
+    }
+
+    ...
+    
+    @Override
+    public Map<String, Object> getConstants() {
+        final Map<String, Object> constants = new HashMap<>();
+        constants.put("ON_RECEIVE", ON_RECEIVE);
+        constants.put("ON_CUSTOM_RECEIVE", ON_CUSTOM_RECEIVE);
+        constants.put("ON_ERROR", ON_ERROR);
+        return constants;
+    }
+}
+```
+
+最后，修改`PushService.js`，增加对`ON_CUSTOM_RECEIVE`事件的监听：
+
+```
+...
+_an_saveInstallation = () => {
+    AndroidPush.saveInstaillation((installationId, error) => {
+        if (installationId) {
+            ...
+            DeviceEventEmitter.addListener(AndroidPush.ON_CUSTOM_RECEIVE, (notification) => {
+                console.log('receive custom android notification');
+                this._showAlert(JSON.parse(notification.data).alert);
+            });
+            ...
+        } else {
+            ...
+        }
+    })
+}
+...
+```
+
+同时通知的消息提也需要做相应修改，才能让custom receiver接收到，我们可以用Postman来发送消息：
+
+![image](https://note.youdao.com/yws/api/personal/file/WEBd967a28c240e086617cd6ff980bba89d?method=download&shareKey=f6510f4ce7a4705ad0ada9db92b79cd6)
+
+消息发出后，App中成功弹出消息提醒，完美。
+
+![image](https://note.youdao.com/yws/api/personal/file/WEB68e524077cbc04eb395488ce3b44c969?method=download&shareKey=ea6d4980038afb366536a38e92f67649)
+
+
+# 结语
+
+经过不懈的努力，我们已经成功使用Leancloud实现了iOS和Android上的消息通知，第一次写这么长的文章还是有点累的。。如果对你有帮助欢迎点赞！还有虽然功能都实现了，但是我想可能还会有更好的实现方式，欢迎找到的同学分享，谢谢！
+
+## 相关链接
+
+iOS篇地址：[使用Leancloud实现React Native App的消息推送（Push Notification）- iOS篇](https://segmentfault.com/a/1190000015614719)
+
+本文Demo Github地址：[https://github.com/MudOnTire/LeancloudPushDemo](https://github.com/MudOnTire/LeancloudPushDemo))
+
+
+
 
